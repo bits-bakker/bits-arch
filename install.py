@@ -6,6 +6,7 @@ Usage:
   python install.py              # full interactive install
   python install.py --switch terminal   # swap terminal emulator
   python install.py --switch launcher  # swap launcher
+  python install.py --switch theming   # swap theming tool
 """
 
 import argparse
@@ -47,11 +48,19 @@ LAUNCHERS = {
     "walker": "Walker — newer Wayland-native launcher (AUR)",
 }
 
+THEMING_TOOLS = {
+    "matugen": "Matugen — colors derived from your wallpaper (Material You)",
+    "aether":  "Aether — pick from preset themes (Dracula, Nord, Gruvbox, …)",
+}
+
 EXTRAS = {
-    "screenshots": "Screenshot tools (grim + slurp)",
-    "clipboard": "Clipboard manager (wl-clipboard + cliphist)",
-    "bluetooth": "Bluetooth support (bluez + blueman)",
+    "screenshots":  "Screenshot tools (grim + slurp)",
+    "clipboard":    "Clipboard manager (wl-clipboard + cliphist)",
+    "bluetooth":    "Bluetooth support (bluez + blueman)",
     "file-manager": "File manager (Thunar)",
+    "vscode":       "Visual Studio Code (AUR: visual-studio-code-bin)",
+    "gh":           "GitHub CLI (gh)",
+    "claude-code":  "Claude Code — Anthropic's AI coding CLI",
 }
 
 
@@ -111,9 +120,9 @@ def install_extras(selected: list[str]) -> None:
             run(script)
 
 
-def install_dotfiles(terminal: str, launcher: str) -> None:
+def install_dotfiles(terminal: str, launcher: str, theming: str) -> None:
     print("\n[dotfiles] Linking dotfiles with stow...")
-    run(SCRIPTS / "dotfiles.sh", terminal, launcher)
+    run(SCRIPTS / "dotfiles.sh", terminal, launcher, theming)
 
 
 def enable_services() -> None:
@@ -121,23 +130,36 @@ def enable_services() -> None:
     run(SCRIPTS / "services.sh")
 
 
-def apply_theme() -> None:
-    print("\n[theme] Applying initial wallpaper theme...")
-    run(SCRIPTS / "theme.sh")
+def apply_theme(theming: str) -> None:
+    print("\n[theme] Applying initial theme...")
+    run(SCRIPTS / "theme.sh", theming)
 
 
 def switch_component(role: str) -> None:
-    """Re-run just the component selection and swap dotfiles."""
-    choices = TERMINALS if role == "terminal" else LAUNCHERS
+    """Re-run just the component selection and swap dotfiles/tool."""
+    if role == "terminal":
+        choices = TERMINALS
+    elif role == "launcher":
+        choices = LAUNCHERS
+    else:
+        choices = THEMING_TOOLS
+
     name = ask_component(role, choices)
 
-    # Unlink current dotfiles for this role
+    if role == "theming":
+        # Unlink matugen dotfiles if switching away from it
+        run(SCRIPTS / "dotfiles.sh", "--unlink-theming")
+        install_component("theming", name)
+        run(SCRIPTS / "dotfiles.sh", f"--link-theming", name)
+        print(f"\n[done] Switched theming to {name}.")
+        if name == "aether":
+            print("       Run: ~/bits-arch/scripts/set-theme.sh dracula")
+        else:
+            print("       Run: ~/bits-arch/scripts/set-wallpaper.sh <image>")
+        return
+
     run(SCRIPTS / "dotfiles.sh", f"--unlink-{role}")
-
-    # Install new component
     install_component(role, name)
-
-    # Re-link dotfiles for this role
     run(SCRIPTS / "dotfiles.sh", f"--link-{role}", name)
 
     print(f"\n[done] Switched {role} to {name}.")
@@ -151,9 +173,10 @@ def full_install() -> None:
 
     terminal = ask_component("terminal", TERMINALS)
     launcher = ask_component("launcher", LAUNCHERS)
-    extras = ask_extras()
+    theming  = ask_component("theming",  THEMING_TOOLS)
+    extras   = ask_extras()
 
-    print(f"\n  Selected: {terminal} · {launcher}")
+    print(f"\n  Selected: {terminal} · {launcher} · {theming}")
     if extras:
         print(f"  Extras:   {', '.join(extras)}")
     print()
@@ -166,14 +189,20 @@ def full_install() -> None:
     install_core()
     install_component("terminal", terminal)
     install_component("launcher", launcher)
+    install_component("theming",  theming)
     install_extras(extras)
-    install_dotfiles(terminal, launcher)
+    install_dotfiles(terminal, launcher, theming)
     enable_services()
-    apply_theme()
+    apply_theme(theming)
 
     print("\n  Installation complete.")
     print("  Start Hyprland by running: Hyprland")
-    print("  Change wallpaper + theme:  ~/bits-arch/scripts/set-wallpaper.sh <image>\n")
+    if theming == "matugen":
+        print("  Change wallpaper + theme:  ~/bits-arch/scripts/set-wallpaper.sh <image>")
+    else:
+        print("  Change preset theme:       ~/bits-arch/scripts/set-theme.sh <name>")
+        print("  Change wallpaper only:     ~/bits-arch/scripts/set-wallpaper.sh <image>")
+    print()
 
 
 def main() -> None:
@@ -185,7 +214,7 @@ def main() -> None:
     parser.add_argument(
         "--switch",
         metavar="ROLE",
-        choices=["terminal", "launcher"],
+        choices=["terminal", "launcher", "theming"],
         help="Switch a component without full reinstall",
     )
     args = parser.parse_args()

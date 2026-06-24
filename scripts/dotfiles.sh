@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Called by install.py with: dotfiles.sh <terminal> <launcher>
+# Called by install.py with: dotfiles.sh <terminal> <launcher> <theming>
 # Or for switching:          dotfiles.sh --unlink-terminal
 #                            dotfiles.sh --link-terminal kitty
 set -euo pipefail
@@ -32,15 +32,31 @@ case "${1:-}" in
     --link-launcher)
         stow_pkg "${2:?missing launcher name}"
         ;;
+    --unlink-theming)
+        unstow_pkg matugen
+        ;;
+    --link-theming)
+        theming="${2:?missing theming name}"
+        [[ "$theming" == "matugen" ]] && stow_pkg matugen
+        mkdir -p "$HOME/.config/bits-arch"
+        echo "$theming" > "$HOME/.config/bits-arch/theming"
+        ;;
     *)
         terminal="${1:?missing terminal}"
         launcher="${2:?missing launcher}"
+        theming="${3:-matugen}"
 
         # Core configs (always applied)
-        for pkg in hypr waybar mako matugen; do
+        for pkg in hypr waybar mako; do
             echo "  stow: $pkg"
             stow_pkg "$pkg"
         done
+
+        # matugen dotfiles only needed when matugen is the theming tool
+        if [[ "$theming" == "matugen" ]]; then
+            echo "  stow: matugen"
+            stow_pkg matugen
+        fi
 
         # Selected component configs
         echo "  stow: $terminal"
@@ -50,5 +66,10 @@ case "${1:-}" in
 
         # GTK CSS doesn't expand ~ — patch the waybar style with the real path
         sed -i "s|@HOME@|$HOME|g" "$HOME/.config/waybar/style.css"
+
+        # Persist theming choice for set-wallpaper.sh and set-theme.sh
+        mkdir -p "$HOME/.config/bits-arch"
+        echo "$theming" > "$HOME/.config/bits-arch/theming"
+        echo "  theming: $theming"
         ;;
 esac
