@@ -1,0 +1,26 @@
+@import "/tmp/walker-colors.css";
+
+window {
+    border-radius: 12px;
+    border: 2px solid @outline;
+    background-color: @background;
+    color: @on_background;
+}
+
+#search {
+    background-color: @surface_variant;
+    color: @on_surface_variant;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 8px;
+}
+
+row {
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+row:selected {
+    background-color: @primary;
+    color: @on_primary;
+}

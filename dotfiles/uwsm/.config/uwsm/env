@@ -1,0 +1,25 @@
+# Wayland environment — loaded by uwsm before Hyprland starts
+
+# Force Wayland for all toolkits
+export QT_QPA_PLATFORM=wayland
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export SDL_VIDEODRIVER=wayland
+export CLUTTER_BACKEND=wayland
+export GDK_BACKEND=wayland,x11
+
+# Firefox Wayland
+export MOZ_ENABLE_WAYLAND=1
+
+# XDG session
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=Hyprland
+export XDG_SESSION_DESKTOP=Hyprland
+
+# Default apps
+export TERMINAL=kitty
+export BROWSER=chromium
+export EDITOR=nvim
+
+# Cursor
+export XCURSOR_THEME=Adwaita
+export XCURSOR_SIZE=24

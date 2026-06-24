@@ -54,7 +54,7 @@ THEMING_TOOLS = {
 }
 
 EXTRAS = {
-    "clipboard":    "Clipboard manager (wl-clipboard + cliphist)",
+    "clipboard":    "Clipboard history (cliphist — wl-clipboard is already installed)",
     "bluetooth":    "Bluetooth support (bluez + blueman)",
     "file-manager": "File manager (Thunar)",
     "vscode":       "Visual Studio Code (AUR: visual-studio-code-bin)",
@@ -134,6 +134,11 @@ def enable_services() -> None:
     run(SCRIPTS / "services.sh")
 
 
+def post_install() -> None:
+    print("\n[post-install] Finalising system setup...")
+    run(SCRIPTS / "post-install.sh")
+
+
 def apply_theme(theming: str) -> None:
     print("\n[theme] Applying initial theme...")
     run(SCRIPTS / "theme.sh", theming)
@@ -197,6 +202,7 @@ def full_install() -> None:
     install_extras(extras)
     install_dotfiles(terminal, launcher, theming)
     enable_services()
+    post_install()
     apply_theme(theming)
 
     print("\n  Installation complete.")

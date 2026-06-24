@@ -1,0 +1,14 @@
+[search]
+delay       = 150
+placeholder = "Search…"
+
+[list]
+max_entries  = 50
+single_click = false
+
+[ui]
+width  = 640
+height = 480
+
+[theme]
+name = "bits"

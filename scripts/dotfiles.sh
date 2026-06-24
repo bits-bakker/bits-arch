@@ -15,6 +15,16 @@ unstow_pkg() {
     stow --dir="$DOTFILES" --target="$HOME" --delete "$1" 2>/dev/null || true
 }
 
+# Generate ~/.config/waybar/matugen.css as a real file (not a symlink).
+# style.css does @import "matugen.css" (relative), which GTK CSS resolves
+# correctly. We can't use ~ or $HOME in @import inside a symlinked file.
+generate_waybar_colors_import() {
+    mkdir -p "$HOME/.config/waybar"
+    cat > "$HOME/.config/waybar/matugen.css" << EOF
+@import "$HOME/.cache/matugen/waybar-colors.css";
+EOF
+}
+
 case "${1:-}" in
     --unlink-terminal)
         for t in kitty foot ghostty; do
@@ -47,12 +57,12 @@ case "${1:-}" in
         theming="${3:-matugen}"
 
         # Core configs (always applied)
-        for pkg in hypr waybar mako; do
+        for pkg in hypr waybar mako uwsm; do
             echo "  stow: $pkg"
             stow_pkg "$pkg"
         done
 
-        # matugen dotfiles only needed when matugen is the theming tool
+        # matugen dotfiles only when matugen is the theming tool
         if [[ "$theming" == "matugen" ]]; then
             echo "  stow: matugen"
             stow_pkg matugen
@@ -64,8 +74,8 @@ case "${1:-}" in
         echo "  stow: $launcher"
         stow_pkg "$launcher"
 
-        # GTK CSS doesn't expand ~ — patch the waybar style with the real path
-        sed -i "s|@HOME@|$HOME|g" "$HOME/.config/waybar/style.css"
+        # Generate the waybar colors import file (plain file, not symlink)
+        generate_waybar_colors_import
 
         # Persist theming choice for set-wallpaper.sh and set-theme.sh
         mkdir -p "$HOME/.config/bits-arch"

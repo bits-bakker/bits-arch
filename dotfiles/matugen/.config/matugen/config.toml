@@ -1,9 +1,6 @@
 [config]
 reload_apps = false   # we reload manually via set-wallpaper.sh
 
-[[config.custom_colors]]
-# Add extra named colors here if needed
-
 [templates.waybar-colors]
 input_path  = "~/.config/matugen/templates/waybar-colors.css.tera"
 output_path = "~/.cache/matugen/waybar-colors.css"
@@ -27,3 +24,11 @@ output_path = "~/.cache/matugen/mako-colors.ini"
 [templates.hyprland-colors]
 input_path  = "~/.config/matugen/templates/hyprland-colors.conf.tera"
 output_path = "~/.cache/matugen/hyprland-colors.conf"
+
+[templates.hyprlock-colors]
+input_path  = "~/.config/matugen/templates/hyprlock-colors.conf.tera"
+output_path = "~/.cache/matugen/hyprlock-colors.conf"
+
+[templates.walker-colors]
+input_path  = "~/.config/matugen/templates/walker-colors.css.tera"
+output_path = "/tmp/walker-colors.css"
