@@ -54,7 +54,6 @@ THEMING_TOOLS = {
 }
 
 EXTRAS = {
-    "screenshots":  "Screenshot tools (grim + slurp)",
     "clipboard":    "Clipboard manager (wl-clipboard + cliphist)",
     "bluetooth":    "Bluetooth support (bluez + blueman)",
     "file-manager": "File manager (Thunar)",
@@ -98,7 +97,12 @@ def ask_extras() -> list[str]:
 
 def install_core() -> None:
     print("\n[core] Installing base packages...")
-    for script in sorted((SCRIPTS / "core").glob("*.sh")):
+    core = SCRIPTS / "core"
+    # matugen.sh also installs yay — run it first so AUR scripts can follow
+    ordered = [core / "matugen.sh"] + sorted(
+        s for s in core.glob("*.sh") if s.name != "matugen.sh"
+    )
+    for script in ordered:
         print(f"  → {script.stem}")
         run(script)
 
