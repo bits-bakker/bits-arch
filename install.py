@@ -51,12 +51,6 @@ def log_error(msg: str) -> None:
     print(f"{C.RED}[error]{C.NC} {msg}", file=sys.stderr)
 
 
-TERMINALS = {
-    "kitty":   "Kitty — GPU-accelerated, rich theming support",
-    "foot":    "Foot — minimal, fast, pure Wayland",
-    "ghostty": "Ghostty — modern, fast (AUR)",
-}
-
 APPS: dict[str, dict] = {
     "clipboard":    {"label": "Clipboard history (cliphist)",       "pkg": "cliphist"},
     "bluetooth":    {"label": "Bluetooth support (bluez + blueman)", "pkg": "bluez"},
@@ -80,16 +74,6 @@ def run(script: Path, *args: str) -> None:
     if result.returncode != 0:
         log_error(f"Script failed: {script.name}")
         sys.exit(result.returncode)
-
-
-def ask_terminal() -> str:
-    choices = [f"{k}  —  {v}" for k, v in TERMINALS.items()]
-    answer = inquirer.prompt([
-        inquirer.List("terminal", message="Which terminal emulator?", choices=choices)
-    ])
-    if answer is None:
-        sys.exit(0)
-    return answer["terminal"].split("  —  ")[0]
 
 
 def ask_confirm(msg: str) -> bool:
@@ -119,9 +103,9 @@ def install_component(role: str, name: str) -> None:
     run(script)
 
 
-def install_dotfiles(terminal: str) -> None:
+def install_dotfiles() -> None:
     log_header("dotfiles", "Linking dotfiles with stow...")
-    run(SCRIPTS / "dotfiles.sh", terminal)
+    run(SCRIPTS / "dotfiles.sh")
 
 
 def enable_services() -> None:
@@ -164,33 +148,20 @@ def apps_menu() -> None:
             log_warn(f"No script found for {key}.")
 
 
-def switch_component(role: str) -> None:
-    if role == "terminal":
-        name = ask_terminal()
-        run(SCRIPTS / "dotfiles.sh", "--unlink-terminal")
-        install_component("terminal", name)
-        run(SCRIPTS / "dotfiles.sh", "--link-terminal", name)
-        log_done(f"Switched terminal to {name}. Log out and back in to apply.")
-
-
 def full_install() -> None:
     print(f"\n  {C.BOLD}bits-arch installer{C.NC}\n")
     print("  Starting from a fresh archinstall minimal base.")
-    print("  Launcher: walker  |  Theming: aether\n")
-
-    terminal = ask_terminal()
-
-    print(f"\n  {C.DIM}Terminal: {terminal}{C.NC}\n")
+    print(f"  {C.DIM}Terminal: kitty  |  Launcher: walker  |  Theming: aether{C.NC}\n")
 
     if not ask_confirm("Proceed with installation?"):
         print("Aborted.")
         sys.exit(0)
 
     install_core()
-    install_component("terminal", terminal)
+    install_component("terminal", "kitty")
     install_component("launcher", "walker")
     install_component("theming", "aether")
-    install_dotfiles(terminal)
+    install_dotfiles()
     enable_services()
     post_install()
     apply_theme()
@@ -210,12 +181,6 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="bits-arch installer")
     parser.add_argument(
-        "--switch",
-        metavar="ROLE",
-        choices=["terminal"],
-        help="Switch a component without full reinstall",
-    )
-    parser.add_argument(
         "--apps",
         action="store_true",
         help="Open the on-demand application installer menu",
@@ -224,8 +189,6 @@ def main() -> None:
 
     if args.apps:
         apps_menu()
-    elif args.switch:
-        switch_component(args.switch)
     else:
         full_install()
 
