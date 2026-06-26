@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Usage: screenshot.sh [region|screen|window]
-# region → select area → open in satty for annotation
-# screen → full output saved to Pictures/Screenshots
-# window → focused window saved to Pictures/Screenshots
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 MODE="${1:-region}"
 SAVEDIR="${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures/Screenshots}"
@@ -20,5 +18,9 @@ case "$MODE" in
         ;;
     window)
         hyprshot -m window --output-folder "$SAVEDIR" --silent
+        ;;
+    *)
+        log_error "Unknown mode: $MODE. Use region, screen, or window."
+        exit 1
         ;;
 esac

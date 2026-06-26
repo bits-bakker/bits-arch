@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 if ! command -v yay &>/dev/null; then
-    echo "[error] yay not found. Run core/matugen.sh first (it installs yay)."
+    log_error "yay not found. Run core/yay.sh first."
     exit 1
 fi
 
-# code-oss is the open-source build in the official repos; use the AUR for the
-# proprietary Microsoft build (with marketplace access)
+log_header "vscode" "Installing Visual Studio Code..."
 yay -S --needed --noconfirm visual-studio-code-bin

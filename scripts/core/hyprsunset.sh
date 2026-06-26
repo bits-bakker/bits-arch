@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-# Blue light filter — Hyprland-native replacement for gammastep/redshift
+log_header "hyprsunset" "Installing blue light filter..."
 sudo pacman -S --needed --noconfirm hyprsunset

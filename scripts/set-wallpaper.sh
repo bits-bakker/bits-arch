@@ -1,38 +1,26 @@
 #!/usr/bin/env bash
 # Usage: set-wallpaper.sh <image-path>
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 IMAGE="${1:?Usage: set-wallpaper.sh <image-path>}"
 IMAGE="$(realpath "$IMAGE")"
 
 if [[ ! -f "$IMAGE" ]]; then
-    echo "[error] File not found: $IMAGE"
+    log_error "File not found: $IMAGE"
     exit 1
 fi
 
-PREFS="$HOME/.config/bits-arch/theming"
-THEMING="matugen"
-[[ -f "$PREFS" ]] && THEMING="$(cat "$PREFS")"
-
-# Start swww daemon if not running
 if ! pgrep -x swww-daemon &>/dev/null; then
     swww-daemon &
     sleep 0.5
 fi
 
+log_step "Setting wallpaper: $IMAGE"
 swww img "$IMAGE" \
     --transition-type grow \
     --transition-pos center \
     --transition-duration 1
 
-case "$THEMING" in
-    matugen)
-        matugen image "$IMAGE"
-        pkill -SIGUSR2 waybar 2>/dev/null || true
-        pkill -HUP mako 2>/dev/null || true
-        ;;
-    aether)
-        # Aether derives its palette from the wallpaper when called with 'wallpaper'
-        aether wallpaper "$IMAGE"
-        ;;
-esac
+log_step "Applying aether wallpaper colors..."
+aether wallpaper "$IMAGE"

@@ -1,3 +1,0 @@
-background-color={{ colors.surface_variant.default.hex }}
-text-color={{ colors.on_surface_variant.default.hex }}
-border-color={{ colors.outline.default.hex }}

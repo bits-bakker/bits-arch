@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Audio
+log_header "services" "Enabling audio services..."
 systemctl --user enable --now pipewire pipewire-pulse wireplumber
 
-# Idle management
+log_step "hypridle (idle management)"
 systemctl --user enable hypridle
 
-# Power profiles (enables power-profiles-daemon for battery/performance switching)
+log_step "power-profiles-daemon"
 sudo systemctl enable --now power-profiles-daemon
 
-# swayosd server (volume/brightness on-screen display)
+log_step "swayosd-server (volume/brightness OSD)"
 systemctl --user enable --now swayosd-server
+
+log_done "Services enabled."

@@ -3,10 +3,9 @@
 bits-arch installer
 Run after a fresh archinstall minimal-profile setup.
 Usage:
-  python install.py              # full interactive install
-  python install.py --switch terminal   # swap terminal emulator
-  python install.py --switch launcher  # swap launcher
-  python install.py --switch theming   # swap theming tool
+  python install.py           # full interactive install
+  python install.py --apps    # on-demand application installer
+  python install.py --switch terminal  # swap terminal emulator
 """
 
 import argparse
@@ -16,220 +15,216 @@ import sys
 from pathlib import Path
 
 try:
-    import questionary
-    from questionary import Style
+    import inquirer
 except ImportError:
-    subprocess.run([sys.executable, "-m", "pip", "install", "--user", "questionary"], check=True)
-    import questionary
-    from questionary import Style
+    subprocess.run([sys.executable, "-m", "pip", "install", "--user", "inquirer"], check=True)
+    import inquirer
 
 REPO_DIR = Path(__file__).parent.resolve()
 SCRIPTS = REPO_DIR / "scripts"
 
-STYLE = Style([
-    ("qmark", "fg:#89b4fa bold"),
-    ("question", "bold"),
-    ("answer", "fg:#a6e3a1 bold"),
-    ("pointer", "fg:#89b4fa bold"),
-    ("highlighted", "fg:#89b4fa"),
-    ("selected", "fg:#a6e3a1"),
-    ("separator", "fg:#6c7086"),
-    ("instruction", "fg:#6c7086"),
-])
+
+class C:
+    RED    = "\033[0;31m"
+    YELLOW = "\033[0;33m"
+    GREEN  = "\033[0;32m"
+    BLUE   = "\033[0;34m"
+    CYAN   = "\033[0;36m"
+    BOLD   = "\033[1m"
+    DIM    = "\033[2m"
+    NC     = "\033[0m"
+
+
+def log_header(tag: str, msg: str) -> None:
+    print(f"\n{C.BOLD}{C.BLUE}[{tag}]{C.NC} {msg}")
+
+def log_step(msg: str) -> None:
+    print(f"  {C.CYAN}→{C.NC} {msg}")
+
+def log_done(msg: str) -> None:
+    print(f"{C.GREEN}[done]{C.NC} {msg}")
+
+def log_warn(msg: str) -> None:
+    print(f"{C.YELLOW}[warn]{C.NC} {msg}")
+
+def log_error(msg: str) -> None:
+    print(f"{C.RED}[error]{C.NC} {msg}", file=sys.stderr)
+
 
 TERMINALS = {
-    "kitty": "Kitty — GPU-accelerated, rich theming support",
-    "foot": "Foot — minimal, fast, pure Wayland",
+    "kitty":   "Kitty — GPU-accelerated, rich theming support",
+    "foot":    "Foot — minimal, fast, pure Wayland",
     "ghostty": "Ghostty — modern, fast (AUR)",
 }
 
-LAUNCHERS = {
-    "rofi": "Rofi — feature-rich, excellent theming (rofi-wayland)",
-    "walker": "Walker — newer Wayland-native launcher (AUR)",
+APPS: dict[str, dict] = {
+    "clipboard":    {"label": "Clipboard history (cliphist)",       "pkg": "cliphist"},
+    "bluetooth":    {"label": "Bluetooth support (bluez + blueman)", "pkg": "bluez"},
+    "file-manager": {"label": "File manager (Dolphin)",              "pkg": "dolphin"},
+    "vscode":       {"label": "Visual Studio Code",                  "cmd": "code"},
+    "gh":           {"label": "GitHub CLI",                          "pkg": "github-cli"},
+    "claude-code":  {"label": "Claude Code — AI coding CLI",         "cmd": "claude"},
 }
 
-THEMING_TOOLS = {
-    "matugen": "Matugen — colors derived from your wallpaper (Material You)",
-    "aether":  "Aether — pick from preset themes (Dracula, Nord, Gruvbox, …)",
-}
 
-EXTRAS = {
-    "clipboard":    "Clipboard history (cliphist — wl-clipboard is already installed)",
-    "bluetooth":    "Bluetooth support (bluez + blueman)",
-    "file-manager": "File manager (Thunar)",
-    "vscode":       "Visual Studio Code (AUR: visual-studio-code-bin)",
-    "gh":           "GitHub CLI (gh)",
-    "claude-code":  "Claude Code — Anthropic's AI coding CLI",
-}
+def is_installed(entry: dict) -> bool:
+    if "pkg" in entry:
+        return subprocess.run(["pacman", "-Qi", entry["pkg"]], capture_output=True).returncode == 0
+    if "cmd" in entry:
+        return subprocess.run(["which", entry["cmd"]], capture_output=True).returncode == 0
+    return False
 
 
 def run(script: Path, *args: str) -> None:
-    cmd = ["bash", str(script), *args]
-    result = subprocess.run(cmd)
+    result = subprocess.run(["bash", str(script), *args])
     if result.returncode != 0:
-        print(f"\n[error] Script failed: {script.name}")
+        log_error(f"Script failed: {script.name}")
         sys.exit(result.returncode)
 
 
-def ask_component(role: str, choices: dict[str, str]) -> str:
-    options = [questionary.Choice(title=f"{k}  —  {v}", value=k) for k, v in choices.items()]
-    answer = questionary.select(
-        f"Which {role}?",
-        choices=options,
-        style=STYLE,
-    ).ask()
+def ask_terminal() -> str:
+    choices = [f"{k}  —  {v}" for k, v in TERMINALS.items()]
+    answer = inquirer.prompt([
+        inquirer.List("terminal", message="Which terminal emulator?", choices=choices)
+    ])
     if answer is None:
         sys.exit(0)
-    return answer
+    return answer["terminal"].split("  —  ")[0]
 
 
-def ask_extras() -> list[str]:
-    options = [questionary.Choice(title=f"{v}", value=k) for k, v in EXTRAS.items()]
-    answer = questionary.checkbox(
-        "Select optional extras (space to toggle, enter to confirm):",
-        choices=options,
-        style=STYLE,
-    ).ask()
+def ask_confirm(msg: str) -> bool:
+    answer = inquirer.prompt([inquirer.Confirm("ok", message=msg, default=True)])
     if answer is None:
-        sys.exit(0)
-    return answer
+        return False
+    return bool(answer["ok"])
 
 
 def install_core() -> None:
-    print("\n[core] Installing base packages...")
+    log_header("core", "Installing base packages...")
     core = SCRIPTS / "core"
-    # matugen.sh also installs yay — run it first so AUR scripts can follow
-    ordered = [core / "matugen.sh"] + sorted(
-        s for s in core.glob("*.sh") if s.name != "matugen.sh"
+    ordered = [core / "yay.sh"] + sorted(
+        s for s in core.glob("*.sh") if s.name != "yay.sh"
     )
     for script in ordered:
-        print(f"  → {script.stem}")
+        log_step(script.stem)
         run(script)
 
 
 def install_component(role: str, name: str) -> None:
     script = SCRIPTS / role / f"{name}.sh"
     if not script.exists():
-        print(f"[warn] No install script found for {role}/{name}, skipping.")
+        log_warn(f"No install script found for {role}/{name}, skipping.")
         return
-    print(f"\n[{role}] Installing {name}...")
+    log_header(role, f"Installing {name}...")
     run(script)
 
 
-def install_extras(selected: list[str]) -> None:
-    for name in selected:
-        script = SCRIPTS / "extras" / f"{name}.sh"
-        if script.exists():
-            print(f"\n[extras] Installing {name}...")
-            run(script)
-
-
-def install_dotfiles(terminal: str, launcher: str, theming: str) -> None:
-    print("\n[dotfiles] Linking dotfiles with stow...")
-    run(SCRIPTS / "dotfiles.sh", terminal, launcher, theming)
+def install_dotfiles(terminal: str) -> None:
+    log_header("dotfiles", "Linking dotfiles with stow...")
+    run(SCRIPTS / "dotfiles.sh", terminal)
 
 
 def enable_services() -> None:
-    print("\n[services] Enabling systemd user services...")
+    log_header("services", "Enabling systemd user services...")
     run(SCRIPTS / "services.sh")
 
 
 def post_install() -> None:
-    print("\n[post-install] Finalising system setup...")
+    log_header("post-install", "Finalising system setup...")
     run(SCRIPTS / "post-install.sh")
 
 
-def apply_theme(theming: str) -> None:
-    print("\n[theme] Applying initial theme...")
-    run(SCRIPTS / "theme.sh", theming)
+def apply_theme() -> None:
+    log_header("theme", "Applying initial theme...")
+    run(SCRIPTS / "theme.sh")
+
+
+def apps_menu() -> None:
+    EXIT = "__exit__"
+    while True:
+        choices = []
+        for key, entry in APPS.items():
+            badge = " (installed)" if is_installed(entry) else ""
+            choices.append((f"{entry['label']}{badge}", key))
+        choices.append(("Exit", EXIT))
+
+        answer = inquirer.prompt([
+            inquirer.List("app", message="Select an application to install", choices=choices)
+        ])
+        if answer is None or answer["app"] == EXIT:
+            break
+
+        key = answer["app"]
+        script = SCRIPTS / "extras" / f"{key}.sh"
+        if script.exists():
+            log_header("apps", f"Installing {key}...")
+            run(script)
+            log_done(f"{key} installed.")
+        else:
+            log_warn(f"No script found for {key}.")
 
 
 def switch_component(role: str) -> None:
-    """Re-run just the component selection and swap dotfiles/tool."""
     if role == "terminal":
-        choices = TERMINALS
-    elif role == "launcher":
-        choices = LAUNCHERS
-    else:
-        choices = THEMING_TOOLS
-
-    name = ask_component(role, choices)
-
-    if role == "theming":
-        # Unlink matugen dotfiles if switching away from it
-        run(SCRIPTS / "dotfiles.sh", "--unlink-theming")
-        install_component("theming", name)
-        run(SCRIPTS / "dotfiles.sh", f"--link-theming", name)
-        print(f"\n[done] Switched theming to {name}.")
-        if name == "aether":
-            print("       Run: ~/bits-arch/scripts/set-theme.sh dracula")
-        else:
-            print("       Run: ~/bits-arch/scripts/set-wallpaper.sh <image>")
-        return
-
-    run(SCRIPTS / "dotfiles.sh", f"--unlink-{role}")
-    install_component(role, name)
-    run(SCRIPTS / "dotfiles.sh", f"--link-{role}", name)
-
-    print(f"\n[done] Switched {role} to {name}.")
-    print(f"       Log out and back in (or restart Hyprland) to apply.")
+        name = ask_terminal()
+        run(SCRIPTS / "dotfiles.sh", "--unlink-terminal")
+        install_component("terminal", name)
+        run(SCRIPTS / "dotfiles.sh", "--link-terminal", name)
+        log_done(f"Switched terminal to {name}. Log out and back in to apply.")
 
 
 def full_install() -> None:
-    print("\n  bits-arch installer\n")
+    print(f"\n  {C.BOLD}bits-arch installer{C.NC}\n")
     print("  Starting from a fresh archinstall minimal base.")
-    print("  Answer the prompts below to customise your setup.\n")
+    print("  Launcher: walker  |  Theming: aether\n")
 
-    terminal = ask_component("terminal", TERMINALS)
-    launcher = ask_component("launcher", LAUNCHERS)
-    theming  = ask_component("theming",  THEMING_TOOLS)
-    extras   = ask_extras()
+    terminal = ask_terminal()
 
-    print(f"\n  Selected: {terminal} · {launcher} · {theming}")
-    if extras:
-        print(f"  Extras:   {', '.join(extras)}")
-    print()
+    print(f"\n  {C.DIM}Terminal: {terminal}{C.NC}\n")
 
-    confirmed = questionary.confirm("Proceed with installation?", style=STYLE, default=True).ask()
-    if not confirmed:
+    if not ask_confirm("Proceed with installation?"):
         print("Aborted.")
         sys.exit(0)
 
     install_core()
     install_component("terminal", terminal)
-    install_component("launcher", launcher)
-    install_component("theming",  theming)
-    install_extras(extras)
-    install_dotfiles(terminal, launcher, theming)
+    install_component("launcher", "walker")
+    install_component("theming", "aether")
+    install_dotfiles(terminal)
     enable_services()
     post_install()
-    apply_theme(theming)
+    apply_theme()
 
-    print("\n  Installation complete.")
-    print("  Start Hyprland by running: Hyprland")
-    if theming == "matugen":
-        print("  Change wallpaper + theme:  ~/bits-arch/scripts/set-wallpaper.sh <image>")
-    else:
-        print("  Change preset theme:       ~/bits-arch/scripts/set-theme.sh <name>")
-        print("  Change wallpaper only:     ~/bits-arch/scripts/set-wallpaper.sh <image>")
+    print(f"\n  {C.GREEN}{C.BOLD}Installation complete.{C.NC}")
+    print(f"  Start Hyprland:   {C.CYAN}uwsm start hyprland{C.NC}")
+    print(f"  Set a theme:      {C.CYAN}~/bits-arch/scripts/set-theme.sh dracula{C.NC}")
+    print(f"  Set wallpaper:    {C.CYAN}~/bits-arch/scripts/set-wallpaper.sh <image>{C.NC}")
+    print(f"  Install apps:     {C.CYAN}python install.py --apps{C.NC}")
     print()
 
 
 def main() -> None:
     if os.geteuid() == 0:
-        print("[error] Do not run as root. Run as your regular user.")
+        log_error("Do not run as root. Run as your regular user.")
         sys.exit(1)
 
     parser = argparse.ArgumentParser(description="bits-arch installer")
     parser.add_argument(
         "--switch",
         metavar="ROLE",
-        choices=["terminal", "launcher", "theming"],
+        choices=["terminal"],
         help="Switch a component without full reinstall",
+    )
+    parser.add_argument(
+        "--apps",
+        action="store_true",
+        help="Open the on-demand application installer menu",
     )
     args = parser.parse_args()
 
-    if args.switch:
+    if args.apps:
+        apps_menu()
+    elif args.switch:
         switch_component(args.switch)
     else:
         full_install()
